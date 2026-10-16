@@ -1,0 +1,11 @@
+openai
+ddgs
+chromadb
+sentence-transformers
+torch
+faster-whisper
+sounddevice
+numpy
+PyQt6
+edge-tts
+pygame
