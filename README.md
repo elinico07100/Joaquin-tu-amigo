@@ -102,17 +102,26 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Descargar el Modelo GGUF
+### 2. Descargar o Seleccionar Modelos GGUF
 
-Podés descargar el modelo cuantizado en formato GGUF desde Hugging Face (por ejemplo, mediante LM Studio o `huggingface-cli`):
+El asistente incluye un **buscador automático de modelos `.gguf`** en tu computadora (escanea carpetas habituales como `~/.lmstudio/models`, `~/.cache/huggingface`, `~/modelos`, `~/Descargas`, etc.).
 
-- **Modelo recomendado:** `Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf`
-- Ubicación por defecto configurada en `iniciar_servidor_modelo.sh`:
-  `~/.lmstudio/models/lmstudio-community/Qwen2.5-Coder-7B-Instruct-GGUF/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf`
+Al iniciar el asistente por primera vez, o usando el botón **⚙️ (Configuración)** / comando `asistente --config`, verás un **menú desplegable** con todos los modelos disponibles en tu disco para que elijas cuál querés fijar como estándar:
+
+```bash
+# Ver todos los modelos encontrados en tu PC desde la terminal:
+asistente --modelos
+
+# Abrir el selector gráfico de modelo y ajustes:
+asistente --config
+```
+
+- **Modelo recomendado por defecto:** `Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf`
+- Podés usar cualquier modelo `.gguf` (Llama 3, Qwen, Mistral, Claude-derivatives, etc.) o examinar cualquier ruta manual desde la interfaz gráfica.
 
 ### 3. Configurar el Servidor Local (`llama-server`)
 
-El servidor corre el modelo de forma ultraeficiente sin interfaces pesadas:
+El servidor corre el modelo de forma ultraeficiente sin interfaces pesadas, leyendo dinámicamente la configuración elegida en `config.json`:
 
 ```bash
 # Otorgar permisos de ejecución

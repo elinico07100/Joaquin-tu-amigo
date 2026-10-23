@@ -1,0 +1,21 @@
+{
+    "modelo_path": "/home/estudiante/.lmstudio/models/lmstudio-community/Qwen2.5-Coder-7B-Instruct-GGUF/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
+    "modelo_nombre": "Qwen2.5-Coder-7B-Instruct-Q4_K_M",
+    "backend_dir": "/home/estudiante/.lmstudio/extensions/backends/llama.cpp-linux-x86_64-nvidia-cuda12-avx2-2.50.0",
+    "host": "127.0.0.1",
+    "puerto": 1234,
+    "ctx_size": 8192,
+    "n_gpu_layers": 99,
+    "flash_attn": true,
+    "threads": 4,
+    "rutas_busqueda": [
+        "~/.lmstudio/models",
+        "~/.cache/huggingface/hub",
+        "~/.ollama/models",
+        "~/modelos",
+        "~/Modelos",
+        "~/Descargas",
+        "~/Documentos"
+    ],
+    "primera_vez": true
+}

@@ -14,10 +14,10 @@ import platform
 import urllib.request
 from openai import OpenAI
 from herramientas import TOOLS_DEFINITIONS, ejecutar_herramienta, normalizar_ruta
+from config import cargar_config, verificar_servidor_listo
 
 SISTEMA_OPERATIVO = platform.system()
-BASE_URL = "http://127.0.0.1:1234/v1"
-MODELO = "qwen2.5-coder-7b-instruct"
+
 
 PROMPT_SISTEMA = (
     f"Sos un asistente de escritorio personal eficiente y proactivo que corre localmente en la PC del usuario.\n"
@@ -49,15 +49,12 @@ PROMPT_SISTEMA = (
 
 
 def asegurar_servidor_activo() -> bool:
-    """Verifica si el servidor de llama.cpp en el puerto 1234 responde.
+    """Verifica si el servidor de llama.cpp en el host:puerto configurado responde.
     Si no responde, intenta levantarlo mediante el servicio systemd del usuario."""
-    url = f"{BASE_URL}/models"
-    try:
-        with urllib.request.urlopen(url, timeout=1.5) as r:
-            if r.status == 200:
-                return True
-    except Exception:
-        pass
+    cfg = cargar_config()
+    url = f"http://{cfg.get('host', '127.0.0.1')}:{cfg.get('puerto', 1234)}/v1/models"
+    if verificar_servidor_listo(url, timeout=1.5):
+        return True
 
     print("[SISTEMA] Servidor de modelo inactivo. Intentando iniciar servicio asistente-modelo...")
     try:
@@ -65,16 +62,12 @@ def asegurar_servidor_activo() -> bool:
     except Exception as e:
         print(f"[SISTEMA] Error al iniciar servicio: {e}")
 
-    # Esperar hasta 8 segundos a que esté listo
-    for _ in range(16):
-        time.sleep(0.5)
-        try:
-            with urllib.request.urlopen(url, timeout=1.0) as r:
-                if r.status == 200:
-                    print("[SISTEMA] Servidor de modelo iniciado y listo.")
-                    return True
-        except Exception:
-            pass
+    # Esperar hasta 25 segundos a que el modelo cargue en GPU/RAM
+    for i in range(25):
+        time.sleep(1.0)
+        if verificar_servidor_listo(url, timeout=1.0):
+            print(f"[SISTEMA] Servidor de modelo iniciado y listo en {i+1}s.")
+            return True
 
     return False
 
@@ -132,13 +125,24 @@ def extraer_llamadas_herramientas(contenido: str):
 
 class AgenteAsistente:
     def __init__(self):
-        self.client = OpenAI(
-            base_url=BASE_URL,
-            api_key="no-key-needed"
-        )
+        self.config = {}
+        self.base_url = ""
+        self.modelo = ""
+        self.client = None
+        self.actualizar_configuracion()
         self.historial = [
             {"role": "system", "content": PROMPT_SISTEMA}
         ]
+
+    def actualizar_configuracion(self):
+        """Recarga la configuración desde config.json y actualiza el cliente."""
+        self.config = cargar_config()
+        self.base_url = f"http://{self.config.get('host', '127.0.0.1')}:{self.config.get('puerto', 1234)}/v1"
+        self.modelo = self.config.get("modelo_nombre", "default")
+        self.client = OpenAI(
+            base_url=self.base_url,
+            api_key="no-key-needed"
+        )
 
     def reiniciar_conversacion(self):
         self.historial = [
@@ -160,7 +164,7 @@ class AgenteAsistente:
 
             try:
                 respuesta = self.client.chat.completions.create(
-                    model=MODELO,
+                    model="default",
                     messages=self.historial,
                     tools=TOOLS_DEFINITIONS,
                     tool_choice="auto",

@@ -1,0 +1,77 @@
+#!/bin/bash
+# Lanzador principal para Mi Asistente IA
+
+# Resolver ruta real del script siguiendo symlinks
+TARGET="${BASH_SOURCE[0]}"
+while [ -h "$TARGET" ]; do
+    DIR="$(cd -P "$(dirname "$TARGET")" >/dev/null 2>&1 && pwd)"
+    TARGET="$(readlink "$TARGET")"
+    [[ $TARGET != /* ]] && TARGET="$DIR/$TARGET"
+done
+PROYECTO_DIR="$(cd -P "$(dirname "$TARGET")" >/dev/null 2>&1 && pwd)"
+VENV_PYTHON="$PROYECTO_DIR/../bin/python3"
+
+if [ ! -f "$VENV_PYTHON" ]; then
+    VENV_PYTHON="python3"
+fi
+
+# Listar modelos encontrados
+if [ "$1" = "--modelos" ] || [ "$1" = "-m" ]; then
+    "$VENV_PYTHON" -c "
+import sys
+sys.path.insert(0, '$PROYECTO_DIR')
+from config import escanear_modelos_locales, cargar_config
+modelos = escanear_modelos_locales()
+cfg = cargar_config()
+actual = cfg.get('modelo_path', '')
+print('\n=== Modelos GGUF encontrados en tu computadora ===')
+for i, m in enumerate(modelos, 1):
+    est = ' [ESTÁNDAR ACTUAL] ⭐️' if m['ruta'] == actual else ''
+    print(f'[{i}] {m[\"nombre\"]} ({m[\"tamano\"]}){est}\n    Ruta: {m[\"ruta\"]}')
+print('')
+"
+    exit 0
+fi
+
+# Abrir diálogo de configuración de modelos directamente
+if [ "$1" = "--config" ]; then
+    shift
+    exec "$VENV_PYTHON" "$PROYECTO_DIR/interfaz_gui.py" --config "$@"
+fi
+
+# Comprobar si se solicitó modo terminal (CLI)
+if [ "$1" = "--cli" ] || [ "$1" = "-c" ]; then
+    shift
+    exec "$VENV_PYTHON" "$PROYECTO_DIR/asistente_chat.py" "$@"
+fi
+
+# Reiniciar y verificar el servicio del modelo
+if [ "$1" = "--server" ]; then
+    systemctl --user restart asistente-modelo.service
+    systemctl --user status asistente-modelo.service --no-pager
+    exit 0
+fi
+
+# Ayuda
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "Uso: asistente [OPCIONES]"
+    echo ""
+    echo "Opciones:"
+    echo "  (sin argumentos)   Abre la interfaz gráfica del asistente"
+    echo "  --config           Abre el selector y configuración de modelos"
+    echo "  --modelos, -m      Muestra los modelos .gguf encontrados en el sistema"
+    echo "  --cli, -c          Ejecuta el asistente en modo terminal interactivo"
+    echo "  --server           Reinicia y verifica el servicio del modelo local"
+    echo "  --help, -h         Muestra esta ayuda"
+    exit 0
+fi
+
+# Si ya está abierto en modo GUI, enfocar la ventana existente
+if command -v wmctrl >/dev/null 2>&1; then
+    if wmctrl -a "Mi Asistente IA" 2>/dev/null; then
+        exit 0
+    fi
+fi
+
+# Ejecutar interfaz gráfica
+exec "$VENV_PYTHON" "$PROYECTO_DIR/interfaz_gui.py" "$@"
