@@ -23,6 +23,8 @@ Diseñado para interactuar directamente con tu sistema operativo mediante **Func
 - 🛠️ **Agente con Herramientas Reales (Tool Calling):**
   - **Archivos y Carpetas:** Crea, lee, modifica, lista y busca archivos o directorios en lenguaje natural.
   - **Papelera Segura:** En lugar de eliminaciones destructivas irreversibles, utiliza `gio trash` para enviar archivos y carpetas a la Papelera de reciclaje.
+  - **Clima en Tiempo Real (`obtener_clima`):** Temperatura exacta, sensación térmica, condición meteorológica, humedad y viento en tiempo real para cualquier ciudad del mundo.
+  - **Recordatorios con Prioridad Inteligente (`recordatorios.py`):** Guarda compromisos y calcula automáticamente su importancia (🔴 Alta, 🟡 Media, 🟢 Baja) según la criticidad (competencias, exámenes, pagos, turnos médicos) y los días restantes.
   - **Navegación Web y Multimedia:** Abre YouTube (`abrir_youtube`), busca videos (`buscar_youtube`), abre cualquier sitio web en el navegador y realiza búsquedas en DuckDuckGo (`ddgs`).
   - **Lanzador de Aplicaciones:** Abre programas instalados (`code`, `firefox`, `nemo`, terminal, etc.) reconociendo nombres coloquiales y alias.
 - 📚 **RAG Local (Búsqueda Semántica de Documentos):**
@@ -217,6 +219,9 @@ Luego podés preguntarle directamente:
 
 | Intención | Ejemplo de lo que podés decirle | Acción ejecutada |
 | :--- | :--- | :--- |
+| **Clima en Vivo** | *"¿Qué clima hace hoy en Buenos Aires?"* | Consulta la temperatura real, sensación térmica y condición meteorológica. |
+| **Recordatorios** | *"Haceme un recordatorio para el domingo 17 de noviembre hay una competencia"* | Agenda el evento, le asigna prioridad 🔴 Alta y calcula el tiempo restante. |
+| **Consultar Agenda** | *"¿Qué recordatorios tengo pendientes?"* | Lista los eventos ordenados por prioridad e importancia. |
 | **YouTube** | *"Abrí una página de YouTube"* | Abre `https://www.youtube.com` en Chrome/navegador predeterminado. |
 | **Búsqueda en YouTube** | *"Buscá en YouTube cómo calibrar una guitarra"* | Abre la búsqueda directa del video en YouTube. |
 | **Navegador Web** | *"Abrí la página de GitHub"* | Abre `https://github.com` en el navegador. |

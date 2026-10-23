@@ -4,7 +4,7 @@
     "backend_dir": "/home/estudiante/.lmstudio/extensions/backends/llama.cpp-linux-x86_64-nvidia-cuda12-avx2-2.50.0",
     "host": "127.0.0.1",
     "puerto": 1234,
-    "ctx_size": 8192,
+    "ctx_size": 16384,
     "n_gpu_layers": 99,
     "flash_attn": true,
     "threads": 4,
@@ -17,5 +17,5 @@
         "~/Descargas",
         "~/Documentos"
     ],
-    "primera_vez": true
+    "primera_vez": false
 }

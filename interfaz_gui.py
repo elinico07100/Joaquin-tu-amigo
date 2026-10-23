@@ -735,7 +735,11 @@ class VentanaAsistente(QMainWindow):
 
     def agregar_mensaje_accion(self, nombre_accion: str, detalles: str):
         icono = "⚡"
-        if "carpeta" in nombre_accion:
+        if "clima" in nombre_accion or "tiempo" in nombre_accion:
+            icono = "🌤️"
+        elif "recordatorio" in nombre_accion:
+            icono = "⏰"
+        elif "carpeta" in nombre_accion:
             icono = "📁"
         elif "documento" in nombre_accion or "archivo" in nombre_accion:
             icono = "📄"

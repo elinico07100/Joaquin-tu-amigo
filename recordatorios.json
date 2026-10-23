@@ -1,0 +1,14 @@
+[
+    {
+        "id": 1,
+        "descripcion": "Competencia",
+        "fecha_iso": "2026-11-17",
+        "fecha_legible": "Martes 17 de noviembre de 2026",
+        "hora": null,
+        "prioridad": "Alta",
+        "nivel_prioridad": 1,
+        "motivo_prioridad": "Asignada manualmente por el usuario",
+        "completado": false,
+        "creado_el": "2026-10-23T14:04:07.069507"
+    }
+]

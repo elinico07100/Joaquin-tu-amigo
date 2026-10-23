@@ -15,7 +15,13 @@ import subprocess
 import webbrowser
 import platform
 import json
+import urllib.request
+import urllib.parse
 from ddgs import DDGS
+from recordatorios import (
+    crear_recordatorio, listar_recordatorios,
+    eliminar_recordatorio, marcar_recordatorio_completado
+)
 
 SISTEMA_OPERATIVO = platform.system()  # 'Linux', 'Windows', 'Darwin'
 HOME_DIR = os.path.expanduser("~")
@@ -341,18 +347,81 @@ def buscar_archivo(nombre_archivo: str, carpeta_inicio: str = "~") -> str:
     return "Resultados encontrados:\n" + "\n".join(encontrados)
 
 
+def obtener_clima(ciudad: str = "Buenos Aires") -> str:
+    """Obtiene el pronóstico y clima actual en tiempo real para cualquier ciudad."""
+    if not ciudad or not ciudad.strip():
+        ciudad = "Buenos Aires"
+
+    ciudad_limpia = ciudad.strip().strip("'").strip('"')
+    print(f"\n[SISTEMA] Consultando clima en tiempo real para: '{ciudad_limpia}'")
+
+    # 1. Intentar con wttr.in en español
+    try:
+        url = f"https://wttr.in/{urllib.parse.quote(ciudad_limpia)}?format=j1&lang=es"
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.68.0"})
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
+            data = json.loads(resp.read().decode())
+            current = data["current_condition"][0]
+            temp = current.get("temp_C", "?")
+            feels = current.get("FeelsLikeC", temp)
+            desc_list = current.get("lang_es", [])
+            desc = desc_list[0]["value"] if desc_list else current.get("weatherDesc", [{}])[0].get("value", "Condición variable")
+            humedad = current.get("humidity", "")
+            viento = current.get("windspeedKmph", "")
+
+            pronostico_str = ""
+            if "weather" in data and len(data["weather"]) > 0:
+                hoy = data["weather"][0]
+                t_max = hoy.get("maxtempC", "")
+                t_min = hoy.get("mintempC", "")
+                pronostico_str = f" | Mín: {t_min}°C, Máx: {t_max}°C"
+
+            return (
+                f"🌤️ Clima actual en {ciudad_limpia}: {desc}, {temp}°C (Sensación térmica: {feels}°C){pronostico_str}. "
+                f"Humedad: {humedad}%, Viento: {viento} km/h."
+            )
+    except Exception as e_wttr:
+        print(f"[CLIMA] wttr.in falló ({e_wttr}), buscando vía DuckDuckGo...")
+
+    # 2. Fallback: DuckDuckGo
+    try:
+        with DDGS() as ddgs:
+            resultados = list(ddgs.text(f"clima actual temperatura tiempo {ciudad_limpia}", max_results=3))
+            if resultados:
+                resumen = " | ".join(f"{r['title']}: {r['body']}" for r in resultados)
+                return f"Datos del clima para {ciudad_limpia}:\n{resumen}"
+    except Exception as e_ddg:
+        return f"No se pudo obtener el clima para '{ciudad_limpia}': {e_ddg}"
+
+    return f"No se encontró información del clima para '{ciudad_limpia}'."
+
+
 def buscar_web(query: str) -> str:
     """Busca información actual en DuckDuckGo."""
     print(f"\n[SISTEMA] Buscando en internet: '{query}'")
+    query_lower = query.lower()
+
+    # Si la búsqueda es sobre el clima, enriquecer con la herramienta especializada de clima
+    clima_extra = ""
+    if any(k in query_lower for k in ["clima", "temperatura", "pronostico", "pronóstico", "tiempo en"]):
+        # Intentar extraer nombre de ciudad si hay
+        palabras = [p for p in query.split() if p.lower() not in ("clima", "del", "el", "de", "en", "temperatura", "hoy", "actual", "pronostico", "pronóstico", "tiempo", "que", "qué")]
+        ciudad = " ".join(palabras) if palabras else "Buenos Aires"
+        clima_extra = obtener_clima(ciudad) + "\n\nResultados adicionales de la web:\n"
+
     resultados = []
     try:
         with DDGS() as ddgs:
             for r in ddgs.text(query, max_results=5):
                 resultados.append(f"- {r['title']}: {r['body']}")
         if not resultados:
+            if clima_extra:
+                return clima_extra.strip()
             return "No se encontraron resultados en internet."
-        return "\n".join(resultados)
+        return clima_extra + "\n".join(resultados)
     except Exception as e:
+        if clima_extra:
+            return clima_extra.strip()
         return f"Error al buscar en internet: {e}"
 
 
@@ -786,6 +855,102 @@ TOOLS_DEFINITIONS = [
                 "required": ["pregunta"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_clima",
+            "description": "Obtiene el pronóstico del clima actual en tiempo real, temperatura, sensación térmica, humedad y viento para cualquier ciudad o localidad.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ciudad": {
+                        "type": "string",
+                        "description": "Nombre de la ciudad o localidad (ej: 'Buenos Aires', 'Córdoba', 'Rosario', 'Madrid', etc.)"
+                    }
+                },
+                "required": ["ciudad"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "crear_recordatorio",
+            "description": "Guarda un recordatorio con fecha, hora y prioridad/importancia (Alta, Media, Baja). La prioridad se asigna automáticamente según la importancia del evento (ej: competencias, exámenes, turnos médicos -> Alta) si no se especifica.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "descripcion": {
+                        "type": "string",
+                        "description": "Descripción o título del recordatorio (ej: 'Competencia', 'Turno con el médico', 'Comprar café')"
+                    },
+                    "fecha": {
+                        "type": "string",
+                        "description": "Fecha del recordatorio en lenguaje natural o numérico (ej: 'domingo 17 de noviembre', 'mañana', '2026-11-17')"
+                    },
+                    "hora": {
+                        "type": "string",
+                        "description": "Hora opcional del evento (ej: '10:00', '15:30')"
+                    },
+                    "prioridad": {
+                        "type": "string",
+                        "description": "Prioridad deseada: 'Alta', 'Media', 'Baja' o 'Auto' para evaluación automática según importancia"
+                    }
+                },
+                "required": ["descripcion", "fecha"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_recordatorios",
+            "description": "Muestra los recordatorios guardados, ordenados según su nivel de importancia y prioridad (Alta primero, luego Media y Baja) y por proximidad de fecha.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "solo_pendientes": {
+                        "type": "boolean",
+                        "description": "True para mostrar solo recordatorios pendientes (por defecto), False para incluir completados"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "eliminar_recordatorio",
+            "description": "Elimina un recordatorio por su número de ID o buscando texto en su descripción.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "identificador": {
+                        "type": "string",
+                        "description": "Número de ID (ej: '1') o nombre/texto del recordatorio a eliminar"
+                    }
+                },
+                "required": ["identificador"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "marcar_recordatorio_completado",
+            "description": "Marca un recordatorio como completado o realizado.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "identificador": {
+                        "type": "string",
+                        "description": "Número de ID o texto del recordatorio a marcar como completado"
+                    }
+                },
+                "required": ["identificador"]
+            }
+        }
     }
 ]
 
@@ -798,7 +963,7 @@ def ejecutar_herramienta(nombre: str, argumentos: dict) -> str:
         "eliminar_carpeta": eliminar_carpeta,
         "crear_documento": crear_documento,
         "leer_documento": leer_documento,
-        "leer_archivo": leer_documento,  # alias compatibilidad
+        "leer_archivo": leer_documento,
         "modificar_documento": modificar_documento,
         "eliminar_documento": eliminar_documento,
         "mover_o_renombrar": mover_o_renombrar,
@@ -813,11 +978,30 @@ def ejecutar_herramienta(nombre: str, argumentos: dict) -> str:
         "buscar_en_youtube": buscar_youtube,
         "abrir_programa": abrir_programa,
         "consultar_mis_documentos": consultar_mis_documentos,
+        "obtener_clima": obtener_clima,
+        "consultar_clima": obtener_clima,
+        "clima": obtener_clima,
+        "crear_recordatorio": crear_recordatorio,
+        "agendar_recordatorio": crear_recordatorio,
+        "recordatorio": crear_recordatorio,
+        "listar_recordatorios": listar_recordatorios,
+        "ver_recordatorios": listar_recordatorios,
+        "mostrar_recordatorios": listar_recordatorios,
+        "consultar_recordatorios": listar_recordatorios,
+        "eliminar_recordatorio": eliminar_recordatorio,
+        "borrar_recordatorio": eliminar_recordatorio,
+        "marcar_recordatorio_completado": marcar_recordatorio_completado,
     }
 
     if nombre not in mapa:
         nombre_lower = (nombre or "").lower()
-        if "youtube" in nombre_lower:
+        if "clima" in nombre_lower or "tiempo" in nombre_lower or "weather" in nombre_lower:
+            return obtener_clima(**argumentos)
+        elif "recordatorio" in nombre_lower or "recordar" in nombre_lower:
+            if "list" in nombre_lower or "ver" in nombre_lower or "mostrar" in nombre_lower:
+                return listar_recordatorios(**argumentos)
+            return crear_recordatorio(**argumentos)
+        elif "youtube" in nombre_lower:
             return abrir_youtube(**argumentos)
         elif "navegador" in nombre_lower or "browser" in nombre_lower or "pagina" in nombre_lower or "web" in nombre_lower:
             return abrir_navegador(**argumentos)

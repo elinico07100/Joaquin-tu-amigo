@@ -11,6 +11,7 @@ import re
 import time
 import subprocess
 import platform
+import datetime
 import urllib.request
 from openai import OpenAI
 from herramientas import TOOLS_DEFINITIONS, ejecutar_herramienta, normalizar_ruta
@@ -18,34 +19,47 @@ from config import cargar_config, verificar_servidor_listo
 
 SISTEMA_OPERATIVO = platform.system()
 
+DIAS_ESP = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+MESES_ESP = ["", "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
-PROMPT_SISTEMA = (
-    f"Sos un asistente de escritorio personal eficiente y proactivo que corre localmente en la PC del usuario.\n"
-    f"Sistema Operativo: Linux Mint ({platform.platform()}).\n"
-    f"Idioma principal: Español.\n\n"
-    "Tenés acceso a herramientas REALES integradas con el sistema. Nunca digas que no podés interactuar "
-    "con el sistema, abrir programas, navegar por internet, crear carpetas o editar archivos: SÍ PODÉS "
-    "usando las funciones (tools) disponibles.\n\n"
-    "ESTRUCTURA DE ARCHIVOS Y REGLAS CRÍTICAS:\n"
-    "1. Las carpetas principales del usuario están en español: '~/Escritorio', '~/Documentos', "
-    "'~/Descargas', '~/Imágenes', '~/Música', '~/Vídeos'. NUNCA uses '~/Desktop' o 'Desktop', usá SIEMPRE '~/Escritorio'.\n"
-    "2. Cuando el usuario te pida 'iniciar una carpeta', 'crear una carpeta' o 'hacer una carpeta', "
-    "DEBES llamar a 'crear_carpeta'. Si te pide iniciarla en el escritorio y solo da un nombre (ej: 'inicia una carpeta proyectos'), "
-    "usá '~/Escritorio/proyectos'.\n"
-    "3. Para crear archivos o documentos (como .txt, notas, scripts), usá 'crear_documento'.\n"
-    "4. Para abrir una carpeta en la ventana del explorador de archivos gráfico, usá 'abrir_carpeta'.\n"
-    "5. Para eliminar archivos o carpetas, usá 'eliminar_documento' o 'eliminar_carpeta' (se envían a la papelera por seguridad).\n"
-    "6. Para buscar archivos o carpetas por nombre, usá 'buscar_archivo'.\n"
-    "7. Para explorar una carpeta específica, usá 'listar_archivos'.\n"
-    "8. Para buscar información actual en internet, usá 'buscar_web'.\n"
-    "9. Para abrir YouTube o buscar videos en YouTube, usá 'abrir_youtube' o 'buscar_youtube'.\n"
-    "10. Para abrir páginas o sitios web generales en el navegador, usá 'abrir_navegador'.\n"
-    "11. Para abrir programas como VS Code, navegador, terminal, usá 'abrir_programa'.\n\n"
-    "FORMATO DE RESPUESTA:\n"
-    "- Respondé en español claro, conciso y directo.\n"
-    "- Cuando ejecutes una herramienta y recibas el resultado, confirmale al usuario amablemente lo que hiciste "
-    "mencionando la ruta completa o el resultado obtenido."
-)
+
+def obtener_prompt_sistema() -> str:
+    """Genera el prompt de sistema dinámico con la fecha y hora real exacta."""
+    ahora = datetime.datetime.now()
+    fecha_hoy = f"{DIAS_ESP[ahora.weekday()]} {ahora.day} de {MESES_ESP[ahora.month]} de {ahora.year}"
+    hora_actual = ahora.strftime("%H:%M")
+
+    return (
+        f"Sos un asistente de escritorio personal eficiente, proactivo y autónomo que corre localmente en la PC del usuario.\n"
+        f"Sistema Operativo: Linux Mint ({platform.platform()}).\n"
+        f"Idioma principal: Español rioplatense / latino natural.\n"
+        f"FECHA Y HORA ACTUAL DEL SISTEMA: {fecha_hoy}, {hora_actual} hs.\n\n"
+        "REGLAS CRÍTICAS DE HERRAMIENTAS Y ACCESO EN TIEMPO REAL:\n"
+        "1. SÍ TENÉS ACCESO A INTERNET Y DATOS EN TIEMPO REAL: NUNCA digas que no podés acceder a internet, que no tenés datos en tiempo real, que no podés saber el clima o que tu conocimiento está limitado a cierta fecha. ¡SÍ PODÉS! Tenés herramientas conectadas directamente y tu deber es invocarlas.\n"
+        "2. CLIMA Y PRONÓSTICO: Si el usuario te pregunta por el clima, tiempo meteorológico, temperatura o pronóstico de cualquier lugar, LLAMÁ SIEMPRE a la herramienta 'obtener_clima'. Si no menciona ciudad, asumí 'Buenos Aires'.\n"
+        "3. RECORDATORIOS Y AGENDA:\n"
+        "   - Cuando el usuario te pida recordar algo o agendar un evento (ej: 'haceme un recordatorio para el domingo 17 de noviembre hay una competencia'), LLAMÁ A 'crear_recordatorio'.\n"
+        "   - IMPORTANCIA Y PRIORIDAD: Cada recordatorio debe tener una prioridad ('Alta', 'Media', 'Baja'). Asignala de manera inteligente: eventos críticos, competencias, exámenes, turnos médicos, pagos o viajes son 'Alta'; tareas de trabajo/estudio son 'Media'; cosas casuales son 'Baja'.\n"
+        "   - Cuando te pidan ver, listar o consultar qué tareas o recordatorios hay pendientes, LLAMÁ A 'listar_recordatorios'. Muestran la prioridad con 🔴, 🟡 y 🟢.\n"
+        "   - Para borrar o completar recordatorios, usá 'eliminar_recordatorio' o 'marcar_recordatorio_completado'.\n"
+        "4. BÚSQUEDA WEB: Para noticias, hechos actuales, búsquedas en internet o información general, usá 'buscar_web'.\n"
+        "5. ARCHIVOS Y CARPETAS:\n"
+        "   - Carpetas principales en español: '~/Escritorio', '~/Documentos', '~/Descargas', '~/Imágenes', '~/Música', '~/Vídeos'. NUNCA uses '~/Desktop', usá '~/Escritorio'.\n"
+        "   - Para crear carpetas: 'crear_carpeta'.\n"
+        "   - Para crear archivos o notas: 'crear_documento'.\n"
+        "   - Para abrir carpetas en el explorador gráfico Nemo: 'abrir_carpeta'.\n"
+        "   - Para eliminar a la papelera segura: 'eliminar_documento' o 'eliminar_carpeta'.\n"
+        "   - Para buscar archivos por nombre: 'buscar_archivo'.\n"
+        "   - Para ver contenidos de carpetas: 'listar_archivos'.\n"
+        "6. MULTIMEDIA Y PROGRAMAS:\n"
+        "   - Para YouTube: 'abrir_youtube' o 'buscar_youtube'.\n"
+        "   - Para abrir sitios web: 'abrir_navegador'.\n"
+        "   - Para lanzar aplicaciones del sistema: 'abrir_programa'.\n\n"
+        "FORMATO DE RESPUESTA:\n"
+        "- Respondé en español claro, conciso, educado y directo.\n"
+        "- Si ejecutaste una herramienta, confirmale al usuario el resultado de forma agradable y clara."
+    )
+
 
 
 def asegurar_servidor_activo() -> bool:
@@ -123,6 +137,29 @@ def extraer_llamadas_herramientas(contenido: str):
     return llamadas
 
 
+def detectar_intencion_directa(mensaje_usuario: str) -> tuple:
+    """Detecta intenciones críticas (clima, recordatorios, búsqueda) como salvaguarda
+    si el modelo rechaza erróneamente aduciendo no tener acceso a internet."""
+    msg = mensaje_usuario.lower()
+
+    if any(k in msg for k in ["clima", "temperatura", "que tiempo hace", "qué tiempo hace", "pronostico", "pronóstico", "tiempo hoy"]):
+        palabras = [p for p in mensaje_usuario.split() if p.lower() not in (
+            "clima", "temperatura", "del", "el", "de", "en", "hoy", "actual", "hace",
+            "que", "qué", "tiempo", "esta", "está", "como", "cómo", "decime", "dime", "saber"
+        )]
+        ciudad = " ".join(palabras) if palabras else "Buenos Aires"
+        return "obtener_clima", {"ciudad": ciudad}
+
+    if any(k in msg for k in [
+        "que tengo agendado", "qué tengo agendado", "mis recordatorios", "ver recordatorios",
+        "mostrar recordatorios", "listar recordatorios", "que tengo que hacer", "qué tengo que hacer",
+        "que compromisos tengo", "qué compromisos tengo"
+    ]):
+        return "listar_recordatorios", {}
+
+    return None, {}
+
+
 class AgenteAsistente:
     def __init__(self):
         self.config = {}
@@ -131,7 +168,7 @@ class AgenteAsistente:
         self.client = None
         self.actualizar_configuracion()
         self.historial = [
-            {"role": "system", "content": PROMPT_SISTEMA}
+            {"role": "system", "content": obtener_prompt_sistema()}
         ]
 
     def actualizar_configuracion(self):
@@ -146,13 +183,17 @@ class AgenteAsistente:
 
     def reiniciar_conversacion(self):
         self.historial = [
-            {"role": "system", "content": PROMPT_SISTEMA}
+            {"role": "system", "content": obtener_prompt_sistema()}
         ]
 
     def procesar_mensaje(self, mensaje_usuario: str, callback_accion=None) -> str:
         """Procesa un mensaje del usuario, ejecuta herramientas si es necesario,
         y devuelve la respuesta final en texto."""
         asegurar_servidor_activo()
+
+        # Mantener el prompt del sistema actualizado con la hora y fecha exacta
+        if self.historial and self.historial[0]["role"] == "system":
+            self.historial[0]["content"] = obtener_prompt_sistema()
 
         self.historial.append({"role": "user", "content": mensaje_usuario})
 
@@ -215,6 +256,29 @@ class AgenteAsistente:
                         "content": f"[Resultado de la herramienta '{nombre}']: {resultado}\n\nCon esta información, responde al usuario."
                     })
                 continue
+
+            # Salvaguarda: si en la primera iteración el modelo respondió que no puede acceder
+            # a internet o al clima, pero la intención es clara, forzamos la herramienta
+            if iteracion == 1:
+                es_rechazo = any(frase in contenido_texto.lower() for frase in [
+                    "no puedo acceder a internet", "no tengo acceso a internet", "no puedo navegar",
+                    "no tengo la capacidad de buscar", "no puedo ver el clima", "no puedo saber el clima",
+                    "como modelo de lenguaje", "no tengo acceso en tiempo real", "no dispongo de información en tiempo real"
+                ])
+                intencion_herramienta, intencion_args = detectar_intencion_directa(mensaje_usuario)
+                if (es_rechazo or intencion_herramienta) and intencion_herramienta:
+                    if callback_accion:
+                        callback_accion(intencion_herramienta, intencion_args)
+                    resultado = ejecutar_herramienta(intencion_herramienta, intencion_args)
+                    self.historial.append({
+                        "role": "user",
+                        "content": (
+                            f"[Herramienta del sistema '{intencion_herramienta}' ejecutada automáticamente con argumentos {intencion_args}]:\n"
+                            f"{resultado}\n\n"
+                            "Con estos datos reales obtenidos ahora mismo, responde amablemente y con precisión a la pregunta del usuario."
+                        )
+                    })
+                    continue
 
             # Caso 3: Respuesta final para el usuario
             self.historial.append({"role": "assistant", "content": contenido_texto})
