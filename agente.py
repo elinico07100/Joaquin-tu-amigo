@@ -55,6 +55,12 @@ def obtener_prompt_sistema() -> str:
         "   - Para YouTube: 'abrir_youtube' o 'buscar_youtube'.\n"
         "   - Para abrir sitios web: 'abrir_navegador'.\n"
         "   - Para lanzar aplicaciones del sistema: 'abrir_programa'.\n\n"
+        "PERSONALIDAD Y CONVERSACIÓN:\n"
+        "- Hablá con naturalidad, buena onda y calidez en tono rioplatense cotidiano.\n"
+        "- Saludos y bromas: Si el usuario te saluda con apodos o bromas (ej: 'hola gay', 'hola crack', 'hola che'): saludá con onda y naturalidad ('¡Buenas! Jaja, acá ando listo para darte una mano. ¿En qué te ayudo hoy?'). NUNCA repitas saludos genéricos ni te trabes.\n"
+        "- Preguntas personales o sobre tu orientación: Si te preguntan 'sos gay' o cosas similares: respondé con simpatía y naturalidad que sos una inteligencia artificial / programa de PC y no tenés género ni orientación sexual, pero estás al 100% para ayudar en lo que haga falta.\n"
+        "- Palabras sueltas: Si el usuario escribe una sola palabra (ej: 'gay'): no tires disculpas robóticas; preguntale con curiosidad qué necesita saber o buscar sobre el tema.\n"
+        "- Búsquedas y diversidad: Búsquedas de videos en YouTube sobre cualquier temática (LGBT+, música, documentales, humor, etc.) o consultas informativas son totalmente normales y legítimas. NUNCA respondas con frases negativas como 'Lo siento, pero no puedo ayudar con eso'. Invocá 'buscar_youtube' o 'buscar_web'.\n\n"
         "FORMATO DE RESPUESTA:\n"
         "- Respondé en español claro, conciso, educado y directo.\n"
         "- Si ejecutaste una herramienta, confirmale al usuario el resultado de forma agradable y clara."
@@ -137,25 +143,89 @@ def extraer_llamadas_herramientas(contenido: str):
     return llamadas
 
 
-def detectar_intencion_directa(mensaje_usuario: str) -> tuple:
-    """Detecta intenciones críticas (clima, recordatorios, búsqueda) como salvaguarda
-    si el modelo rechaza erróneamente aduciendo no tener acceso a internet."""
-    msg = mensaje_usuario.lower()
+def es_texto_rechazo(texto: str) -> bool:
+    """Verifica si el texto devuelto por el modelo es una respuesta de rechazo o fallback de moderación."""
+    if not texto:
+        return False
+    texto_l = texto.lower()
+    frases_rechazo = [
+        "no puedo acceder a internet", "no tengo acceso a internet", "no puedo navegar",
+        "no tengo la capacidad de buscar", "no puedo ver el clima", "no puedo saber el clima",
+        "como modelo de lenguaje", "no tengo acceso en tiempo real", "no dispongo de información en tiempo real",
+        "lo siento, pero no puedo", "lo siento, no puedo", "no puedo ayudarte con eso",
+        "no puedo asistir con eso", "no estoy autorizado", "no puedo cumplir",
+        "no puedo realizar esa búsqueda", "no puedo buscar o compartir videos"
+    ]
+    return any(frase in texto_l for frase in frases_rechazo)
 
-    if any(k in msg for k in ["clima", "temperatura", "que tiempo hace", "qué tiempo hace", "pronostico", "pronóstico", "tiempo hoy"]):
-        palabras = [p for p in mensaje_usuario.split() if p.lower() not in (
+
+def detectar_intencion_directa(mensaje_usuario: str) -> tuple:
+    """Detecta intenciones críticas (clima, recordatorios, youtube, búsquedas) como salvaguarda
+    si el modelo rechaza erróneamente o no invoca la herramienta necesaria."""
+    msg = mensaje_usuario.strip()
+    msg_lower = msg.lower()
+
+    # 1. Clima
+    if any(k in msg_lower for k in ["clima", "temperatura", "que tiempo hace", "qué tiempo hace", "pronostico", "pronóstico", "tiempo hoy"]):
+        palabras = [p for p in msg.split() if p.lower() not in (
             "clima", "temperatura", "del", "el", "de", "en", "hoy", "actual", "hace",
             "que", "qué", "tiempo", "esta", "está", "como", "cómo", "decime", "dime", "saber"
         )]
         ciudad = " ".join(palabras) if palabras else "Buenos Aires"
         return "obtener_clima", {"ciudad": ciudad}
 
-    if any(k in msg for k in [
+    # 2. Recordatorios
+    if any(k in msg_lower for k in [
         "que tengo agendado", "qué tengo agendado", "mis recordatorios", "ver recordatorios",
         "mostrar recordatorios", "listar recordatorios", "que tengo que hacer", "qué tengo que hacer",
         "que compromisos tengo", "qué compromisos tengo"
     ]):
         return "listar_recordatorios", {}
+
+    # 3. YouTube (abrir o buscar videos)
+    es_pedido_yt = (
+        "youtube" in msg_lower or
+        any(k in msg_lower for k in [
+            "buscame videos", "busca videos", "buscá videos", "buscar videos",
+            "pone un video", "pone videos", "poné un video", "poné videos",
+            "reproducir video", "ver videos", "videos de", "video de"
+        ])
+    )
+    if es_pedido_yt:
+        if msg_lower in ("abrir youtube", "abre youtube", "abrí youtube", "youtube", "entrar a youtube", "ir a youtube", "abrir la pagina de youtube"):
+            return "abrir_youtube", {}
+
+        # "pone en youtube X", "busca en youtube X"
+        m = re.search(r"(?:pone|poné|poner|busca|buscá|buscar|reproduce|reproducir|ver)\s+(?:en\s+youtube\s+)(.+)", msg, re.IGNORECASE)
+        if m:
+            return "buscar_youtube", {"query": m.group(1).strip()}
+
+        # "buscame videos de X en youtube", "busca X en youtube"
+        m = re.search(r"(?:buscame|busca|buscá|buscar|pone|poné|poner|ver)\s+(?:videos?\s+)?(?:de\s+|sobre\s+)?(.+?)\s+en\s+youtube", msg, re.IGNORECASE)
+        if m:
+            return "buscar_youtube", {"query": m.group(1).strip()}
+
+        # "bueno entonces buscame videos de X", "buscame videos X"
+        m = re.search(r"(?:buscame|busca|buscá|buscar|pone|poné|poner|reproduce|reproducir|ver)\s+videos?\s+(?:de\s+|sobre\s+)?(.+)", msg, re.IGNORECASE)
+        if m:
+            q = m.group(1).strip()
+            q = re.sub(r"\s+en\s+youtube$", "", q, flags=re.IGNORECASE).strip()
+            if q:
+                return "buscar_youtube", {"query": q}
+
+        if "youtube" in msg_lower:
+            q = re.sub(r"\b(abrir|abre|abrí|buscar|busca|buscá|buscame|pone|poné|en|youtube|videos?|de|un|unos|por|favor|bueno|entonces)\b", "", msg, flags=re.IGNORECASE).strip()
+            return "buscar_youtube", {"query": q}
+
+    # 4. Búsqueda web general
+    if any(k in msg_lower for k in ["buscar en google", "busca en google", "buscar en internet", "busca en internet", "buscar en la web", "busca en la web"]):
+        q = re.sub(r"\b(buscar|busca|buscá|buscame|en|google|internet|la|web|por|favor|bueno|entonces)\b", "", msg, flags=re.IGNORECASE).strip()
+        if q:
+            return "buscar_web", {"consulta": q}
+
+    # 5. Abrir navegador
+    if msg_lower in ("abrir navegador", "abre el navegador", "abrir chrome", "abrir firefox", "abrir internet"):
+        return "abrir_navegador", {}
 
     return None, {}
 
@@ -199,6 +269,7 @@ class AgenteAsistente:
 
         MAX_ITERACIONES = 5
         iteracion = 0
+        herramientas_ejecutadas = []
 
         while iteracion < MAX_ITERACIONES:
             iteracion += 1
@@ -232,6 +303,7 @@ class AgenteAsistente:
                         callback_accion(nombre, args)
 
                     resultado = ejecutar_herramienta(nombre, args)
+                    herramientas_ejecutadas.append((nombre, args, resultado))
 
                     self.historial.append({
                         "role": "tool",
@@ -251,25 +323,37 @@ class AgenteAsistente:
                         callback_accion(nombre, args)
 
                     resultado = ejecutar_herramienta(nombre, args)
+                    herramientas_ejecutadas.append((nombre, args, resultado))
                     self.historial.append({
                         "role": "user",
                         "content": f"[Resultado de la herramienta '{nombre}']: {resultado}\n\nCon esta información, responde al usuario."
                     })
                 continue
 
-            # Salvaguarda: si en la primera iteración el modelo respondió que no puede acceder
-            # a internet o al clima, pero la intención es clara, forzamos la herramienta
+            # Salvaguarda: si en la primera iteración el modelo respondió con un rechazo
+            # o si hay una intención directa evidente no llamada por el modelo
             if iteracion == 1:
-                es_rechazo = any(frase in contenido_texto.lower() for frase in [
-                    "no puedo acceder a internet", "no tengo acceso a internet", "no puedo navegar",
-                    "no tengo la capacidad de buscar", "no puedo ver el clima", "no puedo saber el clima",
-                    "como modelo de lenguaje", "no tengo acceso en tiempo real", "no dispongo de información en tiempo real"
-                ])
+                es_rechazo = es_texto_rechazo(contenido_texto)
                 intencion_herramienta, intencion_args = detectar_intencion_directa(mensaje_usuario)
                 if (es_rechazo or intencion_herramienta) and intencion_herramienta:
                     if callback_accion:
                         callback_accion(intencion_herramienta, intencion_args)
                     resultado = ejecutar_herramienta(intencion_herramienta, intencion_args)
+                    herramientas_ejecutadas.append((intencion_herramienta, intencion_args, resultado))
+
+                    # Para acciones multimedia directas (abrir YouTube, buscar videos, navegador),
+                    # retornar confirmación directa sin exponer al usuario a falsos positivos de censura
+                    if intencion_herramienta in ("abrir_youtube", "buscar_youtube", "abrir_navegador", "abrir_programa"):
+                        if intencion_herramienta == "buscar_youtube":
+                            q = intencion_args.get("query", "")
+                            resp_final = f"¡Listo! Ya te abrí YouTube con la búsqueda '{q}' en tu navegador."
+                        elif intencion_herramienta == "abrir_youtube":
+                            resp_final = "¡Listo! Ya te abrí la página principal de YouTube en tu navegador."
+                        else:
+                            resp_final = str(resultado)
+                        self.historial.append({"role": "assistant", "content": resp_final})
+                        return resp_final
+
                     self.historial.append({
                         "role": "user",
                         "content": (
@@ -279,6 +363,15 @@ class AgenteAsistente:
                         )
                     })
                     continue
+
+            # Si ya se ejecutaron herramientas pero el modelo devolvió un mensaje de rechazo/censura
+            if herramientas_ejecutadas and es_texto_rechazo(contenido_texto):
+                ult_nombre, ult_args, ult_resultado = herramientas_ejecutadas[-1]
+                if ult_nombre in ("buscar_youtube", "abrir_youtube"):
+                    q = ult_args.get("query", "")
+                    contenido_texto = f"¡Listo! Ya te abrí YouTube con la búsqueda '{q}' en tu navegador." if q else "¡Listo! Ya te abrí YouTube en el navegador."
+                else:
+                    contenido_texto = str(ult_resultado)
 
             # Caso 3: Respuesta final para el usuario
             self.historial.append({"role": "assistant", "content": contenido_texto})
